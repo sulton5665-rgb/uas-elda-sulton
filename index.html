@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UAS ELDA - FUTURE MONITOR</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Orbitron:wght@500;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #03050c;
+            --card-bg: rgba(16, 22, 40, 0.7);
+            --neon-blue: #00f3ff;
+            --neon-pink: #bc13fe;
+            --neon-green: #0aff0a;
+            --neon-yellow: #f1c40f;
+            --neon-red: #ff2a2a;
+            --neon-orange: #ff9f1c;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background-color: var(--bg-color);
+            /* Latar belakang grid bergerak futuristik */
+            background-image: 
+                linear-gradient(rgba(0, 20, 50, 0.9), rgba(0, 5, 10, 1)),
+                linear-gradient(0deg, transparent 24%, rgba(0, 243, 255, .05) 25%, rgba(0, 243, 255, .05) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, .05) 75%, rgba(0, 243, 255, .05) 76%, transparent 77%, transparent),
+                linear-gradient(90deg, transparent 24%, rgba(0, 243, 255, .05) 25%, rgba(0, 243, 255, .05) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, .05) 75%, rgba(0, 243, 255, .05) 76%, transparent 77%, transparent);
+            background-size: 100% 100%, 50px 50px, 50px 50px;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* --- HEADER --- */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            width: 100%;
+            max-width: 1100px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(0, 243, 255, 0.3);
+            padding-bottom: 15px;
+            position: relative;
+        }
+
+        h1 {
+            margin: 0;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            background: linear-gradient(90deg, var(--neon-blue), #ffffff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+        }
+
+        .status-container {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 1px solid #333;
+        }
+
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            background-color: #555;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 10px #555;
+            transition: all 0.3s ease;
+        }
+
+        /* --- GRID CARDS --- */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 25px;
+            width: 100%;
+            max-width: 1100px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px); /* Efek Kaca Buram */
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 243, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Dekorasi Sudut Kartu (HUD Style) */
+        .card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            /* Gradient border hanya di sudut */
+            background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 10%, transparent 90%, rgba(255,255,255,0.4) 100%) border-box; 
+            -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: destination-out;
+            mask-composite: exclude;
+            pointer-events: none;
+        }
+
+        .card h3 {
+            margin: 0;
+            font-size: 1rem;
+            color: #aaa;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .value-display {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.8rem;
+            margin: 15px 0;
+            font-weight: 700;
+            z-index: 3;
+            position: relative;
+        }
+
+        .unit {
+            font-size: 1rem;
+            color: #fff;
+            opacity: 0.7;
+            font-weight: bold;
+            background: rgba(255,255,255,0.1);
+            padding: 2px 10px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        /* --- WARNA KHUSUS PER PARAMETER --- */
+        /* Voltage: Blue */
+        .card-voltage .value-display { color: var(--neon-blue); text-shadow: 0 0 20px var(--neon-blue); }
+        .card-voltage { border-bottom: 3px solid var(--neon-blue); }
+
+        /* Current: Red */
+        .card-current .value-display { color: var(--neon-red); text-shadow: 0 0 20px var(--neon-red); }
+        .card-current { border-bottom: 3px solid var(--neon-red); }
+
+        /* Power: Yellow/Gold */
+        .card-power .value-display { color: var(--neon-yellow); text-shadow: 0 0 20px var(--neon-yellow); }
+        .card-power { border-bottom: 3px solid var(--neon-yellow); }
+
+        /* Energy: Green */
+        .card-energy .value-display { color: var(--neon-green); text-shadow: 0 0 20px var(--neon-green); }
+        .card-energy { border-bottom: 3px solid var(--neon-green); }
+
+        /* Freq: Orange */
+        .card-freq .value-display { color: var(--neon-orange); text-shadow: 0 0 20px var(--neon-orange); }
+        .card-freq { border-bottom: 3px solid var(--neon-orange); }
+
+        /* PF: Pink/Purple */
+        .card-pf .value-display { color: var(--neon-pink); text-shadow: 0 0 20px var(--neon-pink); }
+        .card-pf { border-bottom: 3px solid var(--neon-pink); }
+
+
+        /* --- CHART --- */
+        .chart-wrapper {
+            width: 100%;
+            max-width: 1100px;
+            background: rgba(10, 15, 30, 0.8);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+            position: relative;
+        }
+        
+        /* Judul kecil di atas chart */
+        .chart-header {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            font-size: 0.9rem;
+            color: var(--neon-blue);
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        canvas {
+            max-height: 350px;
+        }
+
+        /* Responsive Mobile */
+        @media (max-width: 600px) {
+            h1 { font-size: 1.2rem; }
+            .value-display { font-size: 2.2rem; }
+            .grid-container { grid-template-columns: 1fr 1fr; } 
+            .status-text { display: none; } /* Sembunyikan teks di HP biar rapi */
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h1>⚡ ELDA MONITORING</h1>
+            <div style="font-size: 0.8rem; color: #888; letter-spacing: 1px; margin-top: 5px;">SYSTEM: PZEM-004T // CLASS: UAS PROJECT</div>
+        </div>
+        <div class="status-container">
+            <span class="status-dot" id="dot"></span>
+            <span class="status-text" id="status-text">Disconnected</span>
+        </div>
+    </header>
+
+    <div class="grid-container">
+        <div class="card card-voltage">
+            <h3>Tegangan</h3>
+            <div class="value-display" id="val-voltage">000.0</div>
+            <div class="unit">VOLT</div>
+        </div>
+        
+        <div class="card card-current">
+            <h3>Arus</h3>
+            <div class="value-display" id="val-current">0.000</div>
+            <div class="unit">AMPERE</div>
+        </div>
+
+        <div class="card card-power">
+            <h3>Daya Aktif</h3>
+            <div class="value-display" id="val-power">0000</div>
+            <div class="unit">WATT</div>
+        </div>
+
+        <div class="card card-energy">
+            <h3>Energi</h3>
+            <div class="value-display" id="val-energy">00.00</div>
+            <div class="unit">kWh</div>
+        </div>
+
+        <div class="card card-freq">
+            <h3>Frekuensi</h3>
+            <div class="value-display" id="val-frek">00.0</div>
+            <div class="unit">HERTZ</div>
+        </div>
+
+        <div class="card card-pf">
+            <h3>Power Factor</h3>
+            <div class="value-display" id="val-pf">0.00</div>
+            <div class="unit">COS PHI</div>
+        </div>
+    </div>
+
+    <div class="chart-wrapper">
+        <div class="chart-header">LIVE POWER CONSUMPTION // Real-time Graph</div>
+        <canvas id="powerChart"></canvas>
+    </div>
+
+    <script>
+        // --- KONFIGURASI MQTT ---
+        const broker = "broker.emqx.io";
+        const port = 8084; // WSS Port
+        const topic = "iot/pzem/data"; 
+        const clientID = "web_cyber_" + Math.random().toString(16).substr(2, 8);
+        const client = new Paho.MQTT.Client(broker, port, clientID);
+
+        // --- KONFIGURASI GRAFIK (CHART.JS) ---
+        const ctx = document.getElementById('powerChart').getContext('2d');
+        
+        // Gradient Futuristik untuk Grafik
+        let gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(0, 243, 255, 0.6)'); // Cyan Terang
+        gradient.addColorStop(1, 'rgba(0, 243, 255, 0)');   // Transparan
+
+        const maxDataPoints = 30;
+        
+        // Setup Font Chart Global agar sesuai tema
+        Chart.defaults.font.family = "'Rajdhani', sans-serif";
+        Chart.defaults.color = '#888';
+
+        const powerChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Power (Watt)',
+                    data: [],
+                    borderColor: '#00f3ff', // Garis Cyan Neon
+                    backgroundColor: gradient,
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#00f3ff',
+                    pointHoverRadius: 6,
+                    fill: true,
+                    tension: 0.4 
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: { display: false }, // Sembunyikan legenda agar bersih
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: '#00f3ff',
+                        bodyFont: { size: 14 }
+                    }
+                },
+                scales: {
+                    x: { 
+                        display: false,
+                        grid: { display: false }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.05)' }, // Grid sangat tipis
+                        ticks: { color: '#666', font: { size: 12 } },
+                        border: { display: false }
+                    }
+                }
+            }
+        });
+
+        // --- LOGIKA MQTT & UPDATE DATA ---
+
+        function updateStatus(isConnected) {
+            const dot = document.getElementById("dot");
+            const text = document.getElementById("status-text");
+            if (isConnected) {
+                dot.style.backgroundColor = "#0aff0a";
+                dot.style.boxShadow = "0 0 15px #0aff0a";
+                text.innerText = "ONLINE";
+                text.style.color = "#0aff0a";
+                text.style.textShadow = "0 0 10px #0aff0a";
+            } else {
+                dot.style.backgroundColor = "#ff2a2a";
+                dot.style.boxShadow = "0 0 15px #ff2a2a";
+                text.innerText = "OFFLINE";
+                text.style.color = "#ff2a2a";
+                text.style.textShadow = "0 0 10px #ff2a2a";
+            }
+        }
+
+        client.onConnectionLost = function (responseObject) {
+            updateStatus(false);
+            console.log("Koneksi hilang: " + responseObject.errorMessage);
+            setTimeout(startConnection, 5000);
+        };
+
+        client.onMessageArrived = function (message) {
+            try {
+                const data = JSON.parse(message.payloadString);
+                
+                // Update Angka dengan sedikit animasi random untuk efek 'live'
+                updateValue("val-voltage", data.tegangan, 1);
+                updateValue("val-current", data.arus, 3);
+                updateValue("val-power", data.daya, 1);
+                updateValue("val-energy", data.energi, 3);
+                updateValue("val-frek", data.frekuensi, 1);
+                updateValue("val-pf", data.pf, 2);
+
+                // Update Grafik
+                updateChart(data.daya);
+
+            } catch (e) {
+                console.error("Error parsing data:", e);
+            }
+        };
+
+        // Helper function untuk update text
+        function updateValue(elementId, value, decimal) {
+            const el = document.getElementById(elementId);
+            if(el) el.innerText = parseFloat(value).toFixed(decimal);
+        }
+
+        function updateChart(powerValue) {
+            const now = new Date().toLocaleTimeString();
+            powerChart.data.labels.push(now);
+            powerChart.data.datasets[0].data.push(powerValue);
+
+            if (powerChart.data.labels.length > maxDataPoints) {
+                powerChart.data.labels.shift();
+                powerChart.data.datasets[0].data.shift();
+            }
+            powerChart.update();
+        }
+
+        function startConnection() {
+            document.getElementById("status-text").innerText = "Connecting...";
+            client.connect({
+                useSSL: true,
+                timeout: 3,
+                onSuccess: function () {
+                    updateStatus(true);
+                    client.subscribe(topic);
+                },
+                onFailure: function (e) {
+                    updateStatus(false);
+                    console.log("Gagal konek: " + e.errorMessage);
+                    setTimeout(startConnection, 5000);
+                }
+            });
+        }
+
+        startConnection();
+    </script>
+</body>
+</html>
